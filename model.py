@@ -14,7 +14,7 @@ from sklearn.utils import shuffle
 
 def preprocess_image(image):
 #will handle cropping in conv layer
-#only apply blur and cvt color YUV since image received with cv2.imread(), BGR2YUV 
+#only apply blur and cvt color to RGB, since image received with cv2.imread(), BGR2RGB
     preprocess_image = cv2.GaussianBlur(image, (3,3),0)
     preprocess_image = cv2.cvtColor(preprocess_image, cv2.COLOR_BGR2RGB)
     return preprocess_image
@@ -22,35 +22,7 @@ def preprocess_image(image):
 def flip_image(image):
     flipped_image = cv2.flip(image,1)
     return flipped_image
-    
-# def generator(samples, batch_size=1024):
-# #training data generator 
-#     #pdb.set_trace()
-#     batch_number = 1
-#     batch_total = len(samples) // batch_size
-#     while True:
-#         print('Batch: {}/{}'.format(batch_number, batch_total))
-#         samples = shuffle(samples) #### len(samples) = 19286
-#         for offset in range(0, len(samples), batch_size): ####batch_size 1024 litterate 18.833984375 times
-#             batch_samples = samples[offset:offset+batch_size] ####[0:1024]
-#             images = []
-#             angles = []
-# #### len(batch_samples) = 18~19
-#             for image_path, angle in batch_samples: ####[1024]
-#             #get images with preprocessed 
-#                 image = cv2.imread(image_path)
-#                 p_i = preprocess_image(image)
-#                 images.append(p_i)
-#                 angles.append(angle)
-#                 #get flipped images
-#                 images.append(flip_image(p_i))
-#                 # #pdb.set_trace()
-#                 angles.append(angle*-1.0)?
 
-#                 #### 한배치#             print(len(images))
-#         batch_number += 1
-#     #shuffling again to avoid bias becuase array is [a], [a_flipped], [b],[b_flipped] format
-#     yield shuffle(np.array(images),np.array(angles))
 def generator(samples, batch_size=1024):
     while True:
         shuffle(samples)
@@ -59,13 +31,13 @@ def generator(samples, batch_size=1024):
         angles = []
 
         batch_samples = samples[0:batch_size]
-        #### 왜 10번을 할까?
-        #### validation set 도 여기에 들어오는데 그거는 어떻게됨?
+
         for image_path, angle in batch_samples: 
             image = cv2.imread(image_path)
             argumented_image = preprocess_image(image) 
             images.append(argumented_image)
             angles.append(angle)
+            # To improve: should handle flip earlier and shuffle to avoid bias
             images.append(flip_image(argumented_image))
             angles.append(angle*-1.0)
         print(len(images))
@@ -118,10 +90,6 @@ model.add(Lambda(lambda x: (x / 255.0) - 0.5, input_shape=(160,320,3)))
 # # trim image to only see section with road
 model.add(Cropping2D(cropping=((70,25),(0,0))))
 
-# model.add(Cropping2D(cropping=((75,25),(0,0)),input_shape=(160,320,3), data_format = "channels_last"))
-# # model.add(Lambda(resize))
-# model.add(Lambda(lambda x:(x/127.5) - 0.5))
-
 #layer 1- Convolution, no of filters- 24, filter size= 5x5, stride= 2x2
 model.add(Conv2D(24,(5,5), strides=(2,2)))
 model.add(Activation('elu'))
@@ -169,12 +137,12 @@ model.add(Dense(1)) #here the final layer will contain one value as this is a re
 model.compile(optimizer=Adam(lr=1e-4), loss='mse')
 
 
-file_name = 'model4.h5'
+file_name = 'model.h5'
 print('checkpointer')
 checkpointer = ModelCheckpoint(file_name, monitor='val_loss', verbose = 1, save_best_only = True)
 print('fit_generator')
-#model.fit_generator(train_generator, steps_per_epoch= len(train_samples)//batch_size, validation_data=validation_generator,  validation_steps=len(validation_sampels)//batch_size, epochs=1, verbose=1)
-model.fit_generator(train_generator, steps_per_epoch= len(train_samples)//batch_size, validation_data=validation_generator,  validation_steps=len(validation_samples)//batch_size, epochs=20, verbose=1, callbacks=[checkpointer])
+
+model.fit_generator(train_generator, steps_per_epoch= len(train_samples)//batch_size, validation_data=validation_generator,  validation_steps=len(validation_samples)//batch_size, epochs=3, verbose=1, callbacks=[checkpointer])
 
 model.save(file_name)
 print('model saved!')
